@@ -1,0 +1,21 @@
+program: train.py
+name: max iou
+method: bayes
+metric:
+  name: iou
+  goal: maximize
+parameters:
+  encoder:
+    values: ["resnet18", "resnet34", "alexnet"] 
+  batch_size:
+    values: [4, 5, 6, 7, 8]
+  weight_decay:
+    distribution: uniform
+    min: 0.00005
+    max: 0.1
+  learning_rate:
+    distribution: uniform
+    min: 0.00075
+    max: 0.012
+  training_stages:
+    values: [1, 2, 3]

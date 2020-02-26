@@ -8,9 +8,11 @@ from fastai.vision import get_image_files
 import PIL
 
 # Load label images
-path_data = Path('../data/bdd100k/seg')
+path_data = Path('../../../../BigData/bdd100K/bdd100k/seg')
 path_lbl = path_data / 'labels'
+print("path: ", path_lbl)
 lbl_names = get_image_files(path_lbl, recurse=True)
+print("label names: ", len(lbl_names))
 
 # Replace "Void" mask from 255 to 19 (for better data display)
 # TODO: Process should be *much* faster with cv2 but had issues with conversion
