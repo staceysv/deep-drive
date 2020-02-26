@@ -1,6 +1,6 @@
 # Semantic Segmentation
 
-*Research on optimizing neural networks for semantic segmentation on self-driving cars*
+Forked from Boris's project: [original repo here](https://github.com/borisdayma/semantic-segmentation). 
 
 ## Introduction
 
