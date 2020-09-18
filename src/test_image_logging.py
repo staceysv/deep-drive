@@ -12,6 +12,76 @@ from functools import partialmethod
 import PIL
 import torch
 
+segmentation_classes = [
+    'road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light',
+    'traffic sign', 'vegetation', 'terrain', 'sky', 'person', 'rider', 'car',
+    'truck', 'bus', 'train', 'motorcycle', 'bicycle', 'void'
+]
+
+def labels():
+  l = {}
+  for i, label in enumerate(segmentation_classes):
+    l[i] = label
+  return l
+
+def rand_image():
+  return np.random.randint(255, size=(400, 400, 3))
+
+# generate random masks -- Nick's test code
+def gen_random_masks():
+  mask_list = []
+  n = 400
+  m = 400
+  for i in range(n):
+    inner_list = []
+    for j in range(m):
+      v = 0
+      if i < 200:
+        v = 1
+      if i > 200:
+        v = 2
+      if j < 200:
+        v = v + 3
+      if j > 200:
+        v = v + 6
+      inner_list.append(v)
+    mask_list.append(inner_list)
+
+  mask_data = np.array(mask_list)
+  class_labels = {
+                0 : "car",
+                1 : "pedestrian",
+                4 : "truck",
+                5 : "tractor",
+                7 : "barn",
+                8 : "sign",
+                }
+
+  for i in range(0,100):
+      class_labels[i] = "tag " + str(i)
+  return mask_data, class_labels
+
+def gen_mask_img(mask_data, class_labels):
+  mask_img = wandb.Image(np.array(rand_image()), \
+             masks = {"predictions" : {
+               "mask_data" : mask_data,
+               "class_labels" : class_labels
+               }
+             })
+  return mask_img
+
+def gen_mask_img2(mask_data, class_labels):
+  mask_img = wandb.Image(np.array(rand_image()), masks={
+        "predictions_0":
+        {"mask_data": mask_data,
+            "class_labels": class_labels },
+        "predictions_1":
+        {"mask_data": mask_data,
+            "class_labels": class_labels }}) 
+
+  return mask_img
+
+
 WB_PROJECT="test-deep-drive"
 WB_ENTITY="stacey"
 
@@ -57,6 +127,7 @@ print("Number of images: ", len(data.train_ds))
 
 raw = []
 ground_truth = []
+x_label = []
 # process images
 for image in data.train_ds:
   # log raw image
@@ -74,7 +145,26 @@ for image in data.train_ds:
   raw_x_label = PIL.Image.fromarray(x)
   ground_truth.append(raw_x_label)  
 
+
+  # include Nick's testing
+print("X LABEL: ", x_label)
+#mask_data, class_labels = gen_random_masks()
+#print("MASK DATA: ", mask_data)
+# new class labels
+mask_data = x_label
+class_labels = labels()
+print("CLASS LABELS: ", class_labels)
+ 
+
+wandb.log({
+  "mask_img_single": gen_mask_img(mask_data, class_labels),
+  "mask_img_multi_mask": gen_mask_img2(mask_data, class_labels),
+  "mask_img_list": [gen_mask_img(mask_data, class_labels), gen_mask_img(mask_data, class_labels)]
+})
+   
+
+
 # log arrays to W&B
-wandb.log({"camera view" : [wandb.Image(e) for e in raw],
-          "ground truth" : [wandb.Image(e) for e in ground_truth]})
+#wandb.log({"camera view" : [wandb.Image(e) for e in raw],
+#          "ground truth" : [wandb.Image(e) for e in ground_truth]})
 

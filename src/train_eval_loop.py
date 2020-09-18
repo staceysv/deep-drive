@@ -1,4 +1,4 @@
-# Train Neural network on dataset with fast.ai
+# Train a U-Net for semantic segmentation with fast.ai
 from pathlib import Path
 from fastai.vision import *
 import wandb
@@ -19,14 +19,13 @@ segmentation_classes = [
     'traffic sign', 'vegetation', 'terrain', 'sky', 'person', 'rider', 'car',
     'truck', 'bus', 'train', 'motorcycle', 'bicycle', 'void'
 ]
-
 def labels():
   l = {}
   for i, label in enumerate(segmentation_classes):
     l[i] = label
   return l
 
-
+# convenience for wrapping masks
 def wb_mask(bg_img, pred_mask, true_mask):
   return wandb.Image(bg_img, masks={
     "prediction" : {"mask_data" : pred_mask, "class_labels" : labels()},
@@ -37,7 +36,7 @@ class LogImagesCallback(Callback):
   def __init__(self, learn):
     self.learn = learn
    
-  # log semantic segmentation in the new style
+  # log semantic segmentation masks
   def on_epoch_end(self, **kwargs):
     num_log = 5
     # save some training AND testing data
@@ -62,60 +61,7 @@ class LogImagesCallback(Callback):
         batch_masks.append(wb_mask(bg_image, prediction_mask, true_mask))
 
     wandb.log({"train predictions" : train_masks, "validation predictions" : valid_masks})
-    time.sleep(5)
 
-  def old_on_epoch_end(self, **kwargs):
-    num_log = 20
-    input_batch = self.learn.data.valid_ds[:num_log]
-
-    raw = []
-    prediction = []
-    ground_truth = []
-    examples = []
-    new_seg = []
-    for i, img in enumerate(input_batch):
-
-      # log original image
-      source_img = img[0]
-      x = image2np(source_img.data*255).astype(np.uint8)
-      raw_source = PIL.Image.fromarray(x)
-      raw.append(raw_source)
-
-      # predict from original image
-      o = learn.predict(img[0])[0]
-      xo = image2np(o.data).astype(np.uint8)
-      plt.imsave("label.png", xo, cmap="tab20")  
-      f = open_image("label.png")
-  
-      x = image2np(f.data*255).astype(np.uint8)
-      raw_x = PIL.Image.fromarray(x)
-      prediction.append(raw_x)
-
-      # draft: new segmentation style
-      #new_seg.append(wandb.Image(raw_source, metadata=wandb.Metadata({
-      #     "type": "segmentation/beta",
-      #     "segmentation": json.dumps(f.data.tolist()), #,
-      #     "classes": segmentation_classes
-      #})))
- 
-      # log ground truth prediction: convert to plotly color map
-      # via image save (instead of fastai default)
-      img_label = img[1]
-      x_label = image2np(img_label.data).astype(np.uint8)
-      plt.imsave("label_x.png", x_label, cmap="tab20")
-      f = open_image("label_x.png")
-      x = image2np(f.data*255).astype(np.uint8)
-      raw_x_label = PIL.Image.fromarray(x)
-      ground_truth.append(raw_x_label)  
-
-    wandb.log({"camera view" : [wandb.Image(e) for e in raw],
-               "prediction" : [wandb.Image(e) for e in prediction],
-               "ground truth" : [wandb.Image(e) for e in ground_truth]})
-
-    # draft: new segmentation style
-    for i, s in enumerate(new_seg):
-      wandb.log({"segmentation_" + str(i) : s})
-  
 # Initialize W&B project
 wandb.init(project="cars_train_loop", entity="stacey")
 
@@ -161,6 +107,7 @@ config.training_stages = 2
 path_data = Path('../../../../BigData/bdd100K/bdd100k/seg')
 path_lbl = path_data / 'labels'
 path_img = path_data / 'images'
+#path_model = path_data / "mod" 
 
 # Associate a label to an input
 get_y_fn = lambda x: path_lbl / x.parts[-2] / f'{x.stem}_train_id.png'
@@ -169,6 +116,7 @@ get_y_fn = lambda x: path_lbl / x.parts[-2] / f'{x.stem}_train_id.png'
 src = (SegmentationItemList.from_folder(path_img).use_partial_data(0.02)
 #src = (SegmentationItemList.from_folder(path_img)
        .split_by_folder(train='train', valid='val')
+       .add_test_folder("test")
        .label_from_func(get_y_fn, classes=segmentation_classes))
 
 # Resize, augment, load in batch & normalize (so we can use pre-trained networks)
@@ -289,6 +237,41 @@ learn = unet_learner(
     bn_wd=config.bn_weight_decay,
     callback_fns=partial(WandbCallback, save_model=save_model, monitor='iou'))#, input_type='images'))
 
+# load previous model and test data
+unet_model = load_learner(path_img)
+
+preds = unet_model.get_preds(ds_type=DataSetType.Test)
+print("PREDS: ", preds)
+exit()
+
+#print("loaded: ", unet_model)
+# get test data
+# Load data into train & validation sets
+#dt = ImageDataBunch.from_folder(path_img / "test", valid_pct=0, ds_tfms = get_transforms(), size=config.img_size, bs=config.batch_size).normalize(imagenet_stats) 
+#print(dt)
+
+#batch_masks = []
+
+#test_batch = dt.train_dl
+#print("test: ", test_batch)
+#print(len(test_batch))
+#for i, img in enumerate(test_batch):
+        # log raw image as array
+#  orig_image = img[0]
+#  print("ORIG: ", orig_image)
+#  bg_image = image2np(orig_image.data*255).astype(np.uint8)
+        # our prediction
+#  prediction = unet_model.predict(img[0])[0]
+#  prediction_mask = image2np(prediction.data).astype(np.uint8)
+
+        # ground truth
+  #ground_truth = img[1]
+  #true_mask = image2np(ground_truth.data).astype(np.uint8)
+
+#batch_masks.append(wb_mask(bg_image, prediction_mask)) # true_mask))
+
+#wandb.log({"test preditions" : batch_masks})
+
 # Train
 if config.one_cycle:
     learn.fit_one_cycle(
@@ -308,6 +291,6 @@ else:
 
 
 # try to save learner
-#learn.export()
-#path = learn.save('final_model')
-#print(path)
+learn.export()
+path = learn.save('final_model')
+print(path)
